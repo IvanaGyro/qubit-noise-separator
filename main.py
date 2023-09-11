@@ -118,7 +118,7 @@ class CrosstalkInDelayTask:
                 if circuit.find_bit(instruction.qubits[0])[0] != target_qubit:
                     continue
                 delay_operation: Delay = instruction.operation
-                delay_periods.append(delay_operation.duration / dt_in_us)
+                delay_periods.append(delay_operation.duration * dt_in_us)
                 break
             else:
                 delay_periods.append(0)
@@ -132,18 +132,17 @@ class CrosstalkInDelayTask:
 
     def show_result(self):
         self._get_result()
-        figure = plt.figure(facecolor='yellow', figsize=(12, 6))
-        # figure = plt.figure(facecolor='yellow', layout="constrained")
+        figure = plt.figure(figsize=(12, 6))
 
         ax = plt.subplot2grid((8, 9), (0, 0), colspan=2, rowspan=3)
-        ax.set_facecolor("red")
         ax.axis('off')
         ax.axis('tight')
         plot_gate_map(self.backend, ax=ax)
 
         ax = plt.subplot2grid((8, 9), (0, 2), colspan=7, rowspan=3)
         rows = list(range(self.number_qubits))
-        columns = ('frequency (GHz)', 'readout error', 'T1 (us)', 'T2 (us)', 'prob_meas0_prep1', 'prob_meas1_prep0')
+        columns = ('frequency (GHz)', 'readout error', 'T1 (us)', 'T2 (us)',
+                   'prob_meas0_prep1', 'prob_meas1_prep0')
         backend_properties = self.backend.properties()
         cell_text = []
         for i in range(self.number_qubits):
@@ -158,19 +157,20 @@ class CrosstalkInDelayTask:
             ])
         ax.axis('off')
         ax.axis('tight')
-        table = plt.table(cellText=cell_text, rowLabels=rows, colLabels=columns, loc='center')
+        table = plt.table(cellText=cell_text,
+                          rowLabels=rows,
+                          colLabels=columns,
+                          loc='center')
         table.auto_set_font_size(False)
         table.set_fontsize(10)
 
-        # ax = figure.add_subplot(6, 1, (1, 2))
         ax = plt.subplot2grid((8, 9), (3, 0), colspan=6, rowspan=5)
         self.circuits[-1].draw('mpl', ax=ax)
 
-
-        # ax = figure.add_subplot(6, 1, (3, 5))
         ax = plt.subplot2grid((8, 9), (3, 6), colspan=3, rowspan=5)
         for qubit_index, probabilities in enumerate(self.result):
             if qubit_index == self.target_qubit:
+                plt.plot([], [], '-', label=f'q_{qubit_index}')
                 continue
             plt.plot(self.delay_periods,
                      probabilities,
