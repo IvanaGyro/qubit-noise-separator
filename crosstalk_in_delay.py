@@ -1,6 +1,3 @@
-import configparser
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 from qiskit import *
 from qiskit_ibm_runtime import QiskitRuntimeService, Session, Options, Sampler, RuntimeJob
@@ -190,46 +187,82 @@ class CrosstalkInDelayTask:
         plt.show()
 
 
-target_qubit_mapping = {
-    'ibm_perth': 1,
-    'ibm_lagos': 1,
-    'ibm_nairobi': 1,
-    'ibmq_jakarta': 1,
-    'ibmq_manila': 1,
-    'ibmq_quito': 3,
-    'fake_quito': 3,
-    'ibmq_belem': 3,
-    'ibmq_lima': 3,
-    'ibmq_qasm_simulator': 1,
-}
+if __name__ == '__main__':
+    import argparse
+    import configparser
+    from pathlib import Path
 
-config = configparser.ConfigParser()
-config.read(Path(__file__).parent / 'config.ini')
+    usage = f'''
+  {Path(__file__).name} [-h] -m MACHINE [-g GATE] [-s SHOT]
+  {Path(__file__).name} [-h] -j JOB_ID
+'''
+    description = 'Apply the given gate on a qubis and show how other qubits evolve in time.'
 
-device = config['device']['name']
-options = Options(optimization_level=0,
-                  resilience_level=0,
-                  execution={'shots': 100000})
-service = QiskitRuntimeService(channel='ibm_quantum',
-                               token=config['secret']['ibm_token'])
+    parser = argparse.ArgumentParser(description=description, usage=usage)
 
-task = CrosstalkInDelayTask.from_job(service.job('cjtj8vvtoe8ecf9ru6g0'))
-task.show_result()
-exit()
+    new_task_group = parser.add_argument_group('New task')
+    new_task_group.add_argument('-b',
+                                '--backend',
+                                type=str,
+                                help='The name of the backend')
+    new_task_group.add_argument('-g',
+                                '--gate',
+                                type=str,
+                                default='',
+                                help='The name of the gate will be applied')
+    new_task_group.add_argument('-s',
+                                '--shot',
+                                dest='shot',
+                                type=int,
+                                default=100000,
+                                help='The number of shot')
 
-with Session(service=service, backend=device) as session:
-    backend = service.backend(device)
-    sampler = Sampler(session=session, options=options)
-    tasks = []
-    # for gate_name in ['x', 'h']:
-    for gate_name in ['']:
-        task = CrosstalkInDelayTask(backend, gate_name,
-                                    target_qubit_mapping[device])
-        task.circuits[-1].draw('mpl')
-        task.run(sampler)
-        tasks.append(task)
+    retrieve_task_group = parser.add_argument_group('Retrieve task')
+    retrieve_task_group.add_argument('-j',
+                                     '--job_id',
+                                     dest='job_id',
+                                     type=str,
+                                     help='The ID of the job of IMBQ runtime')
 
-    # submit all jobs first then query the results
-    for task in tasks:
+    args = parser.parse_args()
+    if len([s for s in (args.backend, args.job_id) if s is not None]) != 1:
+        parser.print_help()
+        exit(-1)
+
+    target_qubit_mapping = {
+        'ibm_perth': 1,
+        'ibm_lagos': 1,
+        'ibm_nairobi': 1,
+        'ibmq_jakarta': 1,
+        'ibmq_manila': 1,
+        'ibmq_quito': 3,
+        'ibmq_belem': 3,
+        'ibmq_lima': 3,
+        'ibmq_qasm_simulator': 1,
+    }
+
+    config = configparser.ConfigParser()
+    config.read(Path(__file__).parent / 'config.ini')
+
+    service = QiskitRuntimeService(channel='ibm_quantum',
+                                   token=config['secret']['ibm_token'])
+
+    if args.backend:
+        options = Options(optimization_level=0,
+                          resilience_level=0,
+                          execution={'shots': args.shot})
+        backend = service.backend(args.backend)
+        target_qubit = target_qubit_mapping[args.backend]
+        task = CrosstalkInDelayTask(backend, args.gate, target_qubit)
+
+        with Session(service=service, backend=backend) as session:
+            sampler = Sampler(session=session, options=options)
+            task.run(sampler)
+            task.show_result()
+            session.close()
+    elif args.job_id:
+        job = service.job(args.job_id)
+        task = CrosstalkInDelayTask.from_job(job)
         task.show_result()
-    session.close()
+    else:
+        assert False
