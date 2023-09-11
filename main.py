@@ -29,7 +29,7 @@ class CrosstalkInDelayTask:
             gate_name (str): The name of the gate will drive the qubit at the
                 begining.
         '''
-        delay_periods = list(range(0, 402, 2))
+        delay_periods = list(range(0, 402, 10))
         self._init_task(backend, gate_name, delay_periods, target_qubit)
 
     def _init_task(self,
