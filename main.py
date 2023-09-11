@@ -96,16 +96,21 @@ class CrosstalkInDelayTask:
             if type(i.operation) not in [Delay, Measure, Barrier]
         ]
 
-        if len(gates) > 1:
-            raise ValueError('Number of gates is not 1.')
-        elif len(gates) == 0:
+        if len(gates) == 0:
             gate_name = ''
             target_qubit = 0
         else:
+            drived_qubits = set()
+            for gate in gates:
+                if len(gate.qubits) != 1:
+                    raise ValueError(
+                        f'The gate is not a single-qubit gate:{gate}')
+                drived_qubits.update(gate.qubits)
+            if len(drived_qubits) != 1:
+                raise ValueError(
+                    'The gates were applied on more than on qubits.')
             gate = gates[0]
             gate_name = gate.operation.name
-            if len(gate.qubits) != 1:
-                raise ValueError('The gate is not a single-qubit gate.')
             target_qubit = circuits[-1].find_bit(gate.qubits[0])[0]
 
         delay_periods = []
