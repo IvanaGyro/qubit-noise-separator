@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from qiskit import *
-from qiskit_ibm_runtime import QiskitRuntimeService, Session, Options, Sampler, RuntimeJob
+from qiskit_ibm_runtime import QiskitRuntimeService, Session, Options, Sampler
+from qiskit_ibm_runtime import RuntimeJob
 from qiskit.providers import BackendV1
 from qiskit.compiler import transpile
 from qiskit.circuit import CircuitInstruction
@@ -139,6 +140,11 @@ class CrosstalkInDelayTask:
         ax = plt.subplot2grid((8, 9), (0, 0), colspan=2, rowspan=3)
         ax.axis('off')
         ax.axis('tight')
+        shots = self.job.inputs["run_options"]["shots"]
+        resilience_level = self.job.inputs["resilience_settings"]["level"]
+        plt.title((f'{self.backend.name}\n'
+                   f'shots:{shots} resilience_level:{resilience_level}'),
+                  loc='left')
         plot_gate_map(self.backend, ax=ax)
 
         ax = plt.subplot2grid((8, 9), (0, 2), colspan=7, rowspan=3)
@@ -196,7 +202,8 @@ if __name__ == '__main__':
   {Path(__file__).name} [-h] -m MACHINE [-g GATE] [-s SHOT]
   {Path(__file__).name} [-h] -j JOB_ID
 '''
-    description = 'Apply the given gate on a qubis and show how other qubits evolve in time.'
+    description = ('Apply the given gate on a qubis and '
+    'show how other qubits evolve in time.')
 
     parser = argparse.ArgumentParser(description=description, usage=usage)
 
