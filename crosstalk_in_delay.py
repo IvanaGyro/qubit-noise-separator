@@ -133,7 +133,18 @@ class CrosstalkInDelayTask:
         task.job = job
         return task
 
-    def show_result(self):
+    def show_result(self, diff: 'CrosstalkInDelayTask | None' = None):
+        if diff is not None:
+            if self.backend != diff.backend:
+                raise ValueError(
+                    (f'Backend are not the same. '
+                     f'self:{self.backend.name} diff:{diff.backend.name}'))
+            if len(self.circuits) != len(diff.circuits):
+                raise ValueError(
+                    (f'The numbers of circuits are not equal. '
+                     f'self:{len(self.circuits)} diff:{len(diff.circuits)}'))
+            diff._get_result()
+
         self._get_result()
         figure = plt.figure(figsize=(12, 6))
 
@@ -180,11 +191,19 @@ class CrosstalkInDelayTask:
             if qubit_index == self.target_qubit:
                 plt.plot([], [], '-', label=f'q_{qubit_index}')
                 continue
+            if diff is not None:
+                probabilities = [
+                    p - diff.result[qubit_index][i]
+                    for i, p in enumerate(probabilities)
+                ]
             plt.plot(self.delay_periods,
                      probabilities,
                      '-',
                      label=f'q_{qubit_index}')
-        plt.title('strength of crosstalk')
+        if diff is not None:
+            plt.title('strength of crosstalk\n(this minus delay only)')
+        else:
+            plt.title('strength of crosstalk')
         plt.legend(loc='upper right')
         plt.xlabel('delay time (us)')
         plt.ylabel('probability of $| 1 \\rangle$')
@@ -203,7 +222,7 @@ if __name__ == '__main__':
   {Path(__file__).name} [-h] -j JOB_ID
 '''
     description = ('Apply the given gate on a qubis and '
-    'show how other qubits evolve in time.')
+                   'show how other qubits evolve in time.')
 
     parser = argparse.ArgumentParser(description=description, usage=usage)
 
@@ -230,6 +249,15 @@ if __name__ == '__main__':
                                      dest='job_id',
                                      type=str,
                                      help='The ID of the job of IMBQ runtime')
+    general_group = parser.add_argument_group('General')
+    general_group.add_argument(
+        '-d',
+        '--diff',
+        dest='diff',
+        type=str,
+        help=(
+            'The ID of the job that did not apply any gate. The number of the '
+            'circuits and the backend should be the same as the input task.'))
 
     args = parser.parse_args()
     if len([s for s in (args.backend, args.job_id) if s is not None]) != 1:
@@ -254,6 +282,10 @@ if __name__ == '__main__':
     service = QiskitRuntimeService(channel='ibm_quantum',
                                    token=config['secret']['ibm_token'])
 
+    diff_task = None
+    if args.diff is not None:
+        diff_job = service.job(args.diff)
+        diff_task = CrosstalkInDelayTask.from_job(diff_job)
     if args.backend:
         options = Options(optimization_level=0,
                           resilience_level=0,
@@ -265,11 +297,11 @@ if __name__ == '__main__':
         with Session(service=service, backend=backend) as session:
             sampler = Sampler(session=session, options=options)
             task.run(sampler)
-            task.show_result()
+            task.show_result(diff_task)
             session.close()
     elif args.job_id:
         job = service.job(args.job_id)
         task = CrosstalkInDelayTask.from_job(job)
-        task.show_result()
+        task.show_result(diff_task)
     else:
         assert False
